@@ -1,33 +1,54 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import sqlite3
 
+
+db = "users.db"
+db_connection = sqlite3.connect(db)
+cursor = db_connection.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL,
+    email TEXT NOT NULL
+)
+""")
+db_connection.commit()
+db_connection.close()
 
 class User(BaseModel):
     id: int
     username: str
     email: str
-
-users = [
-    User(id=1, username="johndoe", email="john@example.com"),
-    User(id=2, username="janedoe", email="jane@example.com"),
-    User(id=3, username="alice", email="alice@example.com"),
-]
     
 app = FastAPI()
 
 @app.get("/users")
 def get_users():
-    return users
+    con = sqlite3.connect(db)
+    cursor = con.cursor()
+    cursor.execute("SELECT * FROM users")
+    rows = cursor.fetchall()
+    con.close()
+    return [User(id=row[0], username=row[1], email=row[2]) for row in rows]
 
 @app.get("/users/{user_id}")
 def get_user(user_id: int):
-    for user in users:
-        if user.id == user_id:
-            return user
+    con = sqlite3.connect(db)
+    cursor = con.cursor()
+    cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
+    row = cursor.fetchone()
+    con.close()
+    if row:
+        return User(id=row[0], username=row[1], email=row[2])
 
 @app.post("/create_user")
 def create_user(user: User):
-    users.append(user)
+    con = sqlite3.connect(db)
+    cursor = con.cursor()
+    cursor.execute("INSERT INTO users (username, email) VALUES (?, ?)", (user.username, user.email))
+    con.commit()
+    con.close()
     return user
 
 
